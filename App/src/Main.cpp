@@ -1,6 +1,10 @@
-#include <iostream>
+
+#include "Utils/Log.h"
 
 int main(int argc, char** argv) {
-	std::cout << "Hello, World!" << std::endl;
+	Log::Init();
+
+	LOG_INFO("Hello, World!");
+
 	return 0;
 }

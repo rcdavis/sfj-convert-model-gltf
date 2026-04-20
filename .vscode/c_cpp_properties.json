@@ -4,6 +4,8 @@
 		{
 			"name": "Linux (Debug)",
 			"includePath": [
+				"${workspaceFolder}/build-linux-debug/_deps/spdlog-src/include/",
+				"${workspaceFolder}/App/include",
 				"/usr/include",
 				"/usr/local/include"
 			],
@@ -20,6 +22,8 @@
 		{
 			"name": "Linux (Release)",
 			"includePath": [
+				"${workspaceFolder}/build-linux-release/_deps/spdlog-src/include/",
+				"${workspaceFolder}/App/include",
 				"/usr/include",
 				"/usr/local/include"
 			],
