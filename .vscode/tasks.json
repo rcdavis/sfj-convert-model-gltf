@@ -1,0 +1,36 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build All (Linux Debug)",
+			"type": "shell",
+			"command": "ninja",
+			"args": [],
+			"options": {
+				"cwd": "${workspaceFolder}/build-linux-debug"
+			},
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"presentation": {
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "Build All (Linux Release)",
+			"type": "shell",
+			"command": "ninja",
+			"args": [],
+			"options": {
+				"cwd": "${workspaceFolder}/build-linux-release"
+			},
+			"group": {
+				"kind": "build"
+			},
+			"presentation": {
+				"reveal": "always"
+			}
+		}
+	]
+}

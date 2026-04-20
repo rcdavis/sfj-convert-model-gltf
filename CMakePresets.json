@@ -1,0 +1,27 @@
+{
+	"version": 6,
+	"configurePresets": [
+		{
+			"name": "common",
+			"hidden": true,
+			"generator": "Ninja",
+			"binaryDir": "build-${presetName}"
+		},
+		{
+			"name": "linux-debug",
+			"displayName": "Linux (Debug)",
+			"inherits": "common",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug"
+			}
+		},
+		{
+			"name": "linux-release",
+			"displayName": "Linux (Release)",
+			"inherits": "common",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release"
+			}
+		}
+	]
+}
