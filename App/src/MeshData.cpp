@@ -99,6 +99,7 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename) {
 	vertexView.byteOffset = 0;
 	vertexView.byteLength = meshData.vertices.size() * sizeof(Vertex);
 	vertexView.byteStride = sizeof(Vertex);
+	vertexView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
 	model.bufferViews.emplace_back(std::move(vertexView));
 
 	// Index buffer view
@@ -107,6 +108,7 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename) {
 	indexView.byteOffset = 0;
 	indexView.byteLength = meshData.indices.size() * sizeof(uint16_t);
 	indexView.byteStride = sizeof(uint16_t);
+	indexView.target = TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER;
 	model.bufferViews.emplace_back(std::move(indexView));
 
 	// Calculate min and max values for position attribute
