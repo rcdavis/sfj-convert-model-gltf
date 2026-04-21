@@ -5,6 +5,16 @@
 
 #include "glm/gtc/type_ptr.hpp"
 #include "tiny_gltf.h"
+#include "stb_image.h"
+
+struct ImageData {
+	int width = 0;
+	int height = 0;
+	int channels = 0;
+	std::vector<unsigned char> data;
+};
+
+static bool ImageData_Load(ImageData& imageData, const char* filename);
 
 bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 	LOG_INFO("Loading mesh from file: {}", filename);
@@ -76,9 +86,7 @@ bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 	return true;
 }
 
-bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename) {
-	LOG_INFO("Saving mesh to GLTF file: {}", filename);
-
+bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, const char* diffuseTextureFilename, const char* normalTextureFilename) {
 	tinygltf::Model model;
 
 	// Vertex buffer
@@ -166,6 +174,71 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename) {
 	indexAccessor.type = TINYGLTF_TYPE_SCALAR;
 	model.accessors.emplace_back(std::move(indexAccessor));
 
+	// Parse diffuse texture
+	ImageData diffuseImageData;
+	if (!ImageData_Load(diffuseImageData, diffuseTextureFilename)) {
+		LOG_ERROR("Failed to load diffuse texture: {}", diffuseTextureFilename);
+		return false;
+	}
+
+	// Diffuse Image
+	tinygltf::Image diffuseImage;
+	diffuseImage.width = diffuseImageData.width;
+	diffuseImage.height = diffuseImageData.height;
+	diffuseImage.component = diffuseImageData.channels;
+	diffuseImage.bits = 8;
+	diffuseImage.pixel_type = TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE;
+	diffuseImage.image = std::move(diffuseImageData.data);
+	diffuseImage.mimeType = "image/png";
+	model.images.emplace_back(std::move(diffuseImage));
+
+	// Parse normal texture
+	ImageData normalImageData;
+	if (!ImageData_Load(normalImageData, normalTextureFilename)) {
+		LOG_ERROR("Failed to load normal texture: {}", normalTextureFilename);
+		return false;
+	}
+
+	// Normal Image
+	tinygltf::Image normalImage;
+	normalImage.width = normalImageData.width;
+	normalImage.height = normalImageData.height;
+	normalImage.component = normalImageData.channels;
+	normalImage.bits = 8;
+	normalImage.pixel_type = TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE;
+	normalImage.image = std::move(normalImageData.data);
+	normalImage.mimeType = "image/png";
+	model.images.emplace_back(std::move(normalImage));
+
+	// Sampler
+	tinygltf::Sampler sampler;
+	sampler.wrapS = TINYGLTF_TEXTURE_WRAP_REPEAT;
+	sampler.wrapT = TINYGLTF_TEXTURE_WRAP_REPEAT;
+	sampler.minFilter = TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
+	sampler.magFilter = TINYGLTF_TEXTURE_FILTER_LINEAR;
+	model.samplers.emplace_back(std::move(sampler));
+
+	// Diffuse Texture
+	tinygltf::Texture diffuseTexture;
+	diffuseTexture.source = 0; // image index
+	diffuseTexture.sampler = 0; // sampler index
+	model.textures.emplace_back(std::move(diffuseTexture));
+
+	// Normal Texture
+	tinygltf::Texture normalTexture;
+	normalTexture.source = 1; // image index
+	normalTexture.sampler = 0; // sampler index
+	model.textures.emplace_back(std::move(normalTexture));
+
+	// Material
+	tinygltf::Material material;
+	material.pbrMetallicRoughness.baseColorTexture.index = 0; // texture index
+	material.pbrMetallicRoughness.baseColorFactor = { 1.0f, 1.0f, 1.0f, 1.0f };
+	material.pbrMetallicRoughness.metallicFactor = 0.0f;
+	material.pbrMetallicRoughness.roughnessFactor = 1.0f;
+	material.normalTexture.index = 1; // normal texture index
+	model.materials.emplace_back(std::move(material));
+
 	// Primitive
 	tinygltf::Primitive primitive;
 	primitive.attributes["POSITION"] = 0; // position accessor index
@@ -173,6 +246,7 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename) {
 	primitive.attributes["TANGENT"] = 2;  // tangent accessor index
 	primitive.attributes["TEXCOORD_0"] = 3; // texCoords accessor index
 	primitive.indices = 4; // index accessor index
+	primitive.material = 0; // material index
 	primitive.mode = TINYGLTF_MODE_TRIANGLES;
 
 	// Mesh
@@ -191,12 +265,33 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename) {
 	model.scenes.emplace_back(std::move(scene));
 	model.defaultScene = 0;
 
+	LOG_INFO("Saving mesh to GLTF file: {}", filename);
+
 	// Save the model to a GLTF file
 	tinygltf::TinyGLTF gltfContext;
 	if (!gltfContext.WriteGltfSceneToFile(&model, filename, true, true, true, false)) {
 		LOG_ERROR("Failed to save GLTF file: {}", filename);
 		return false;
 	}
+
+	return true;
+}
+
+static bool ImageData_Load(ImageData& imageData, const char* filename) {
+	int width = 0, height = 0, channels = 0;
+	stbi_uc* imageDataRaw = stbi_load(filename, &width, &height, &channels, 4);
+	if (!imageDataRaw) {
+		LOG_ERROR("Failed to load texture image: {}", filename);
+		return false;
+	}
+
+	std::vector<unsigned char> rgbaData(imageDataRaw, imageDataRaw + (width * height * 4));
+	stbi_image_free(imageDataRaw);
+
+	imageData.width = width;
+	imageData.height = height;
+	imageData.channels = 4;
+	imageData.data = std::move(rgbaData);
 
 	return true;
 }

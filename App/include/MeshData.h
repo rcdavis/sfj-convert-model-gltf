@@ -22,4 +22,4 @@ struct MeshData {
  */
 bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename);
 
-bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename);
+bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, const char* diffuseTextureFilename, const char* normalTextureFilename);
