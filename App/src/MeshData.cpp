@@ -15,8 +15,8 @@ struct ImageData {
 };
 
 struct VertexInfluence {
-	uint32_t jointIndex;
-	float weight;
+	uint32_t jointIndex = 0;
+	float weight = 0.0f;
 };
 
 static bool ImageData_Load(ImageData& imageData, const char* filename);
