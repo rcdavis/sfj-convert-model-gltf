@@ -76,7 +76,7 @@ bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 	return true;
 }
 
-bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename) {
+bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, const char* diffuseTextureFilename) {
 	LOG_INFO("Saving mesh to GLTF file: {}", filename);
 
 	tinygltf::Model model;
@@ -166,6 +166,33 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename) {
 	indexAccessor.type = TINYGLTF_TYPE_SCALAR;
 	model.accessors.emplace_back(std::move(indexAccessor));
 
+	// Image
+	tinygltf::Image diffuseImage;
+	diffuseImage.uri = diffuseTextureFilename;
+	model.images.emplace_back(std::move(diffuseImage));
+
+	// Sampler
+	tinygltf::Sampler sampler;
+	sampler.wrapS = TINYGLTF_TEXTURE_WRAP_REPEAT;
+	sampler.wrapT = TINYGLTF_TEXTURE_WRAP_REPEAT;
+	sampler.minFilter = TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR;
+	sampler.magFilter = TINYGLTF_TEXTURE_FILTER_LINEAR;
+	model.samplers.emplace_back(std::move(sampler));
+
+	// Texture
+	tinygltf::Texture texture;
+	texture.source = 0; // image index
+	texture.sampler = 0; // sampler index
+	model.textures.emplace_back(std::move(texture));
+
+	// Material
+	tinygltf::Material material;
+	material.pbrMetallicRoughness.baseColorTexture.index = 0; // texture index
+	material.pbrMetallicRoughness.baseColorFactor = { 1.0f, 1.0f, 1.0f, 1.0f };
+	material.pbrMetallicRoughness.metallicFactor = 0.0f;
+	material.pbrMetallicRoughness.roughnessFactor = 1.0f;
+	model.materials.emplace_back(std::move(material));
+
 	// Primitive
 	tinygltf::Primitive primitive;
 	primitive.attributes["POSITION"] = 0; // position accessor index
@@ -173,6 +200,7 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename) {
 	primitive.attributes["TANGENT"] = 2;  // tangent accessor index
 	primitive.attributes["TEXCOORD_0"] = 3; // texCoords accessor index
 	primitive.indices = 4; // index accessor index
+	primitive.material = 0; // material index
 	primitive.mode = TINYGLTF_MODE_TRIANGLES;
 
 	// Mesh
