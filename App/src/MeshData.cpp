@@ -39,7 +39,11 @@ bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 
 		file.read((char*)glm::value_ptr(vertex.pos), sizeof(glm::vec3));
 		file.read((char*)glm::value_ptr(vertex.normal), sizeof(glm::vec3));
-		file.read((char*)glm::value_ptr(vertex.tangent), sizeof(glm::vec3));
+
+		glm::vec3 tangent;
+		file.read((char*)glm::value_ptr(tangent), sizeof(glm::vec3));
+		vertex.tangent = glm::vec4(tangent, 1.0f);
+
 		file.read((char*)glm::value_ptr(vertex.texCoords), sizeof(glm::vec2));
 
 		uint32_t influenceCount = 0;
@@ -139,7 +143,7 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename) {
 	tangentAccessor.byteOffset = offsetof(Vertex, tangent);
 	tangentAccessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
 	tangentAccessor.count = meshData.vertices.size();
-	tangentAccessor.type = TINYGLTF_TYPE_VEC3;
+	tangentAccessor.type = TINYGLTF_TYPE_VEC4;
 	model.accessors.emplace_back(std::move(tangentAccessor));
 
 	// Vertex Texture Coordinates accessor
