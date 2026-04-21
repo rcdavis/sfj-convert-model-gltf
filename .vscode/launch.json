@@ -6,7 +6,9 @@
 			"type": "cppdbg",
 			"request": "launch",
 			"program": "${workspaceFolder}/build-linux-debug/App/App",
-			"args": [],
+			"args": [
+				"res/meshes/Player.mesh"
+			],
 			"stopAtEntry": false,
 			"cwd": "${workspaceFolder}/build-linux-debug/App",
 			"environment": [],
@@ -27,7 +29,9 @@
 			"type": "cppdbg",
 			"request": "launch",
 			"program": "${workspaceFolder}/build-linux-release/App/App",
-			"args": [],
+			"args": [
+				"res/meshes/Player.mesh"
+			],
 			"stopAtEntry": false,
 			"cwd": "${workspaceFolder}/build-linux-release/App",
 			"environment": [],
