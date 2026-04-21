@@ -14,7 +14,7 @@ int main(int argc, char** argv) {
 	}
 
 	MeshData meshData;
-	if (!MeshData_LoadFromFile(meshData, argv[1])) {
+	if (!MeshData_LoadFromSfjFile(meshData, argv[1])) {
 		LOG_ERROR("Failed to load mesh data");
 		return -1;
 	}

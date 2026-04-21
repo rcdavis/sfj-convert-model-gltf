@@ -5,7 +5,7 @@
 
 #include "glm/gtc/type_ptr.hpp"
 
-bool MeshData_LoadFromFile(MeshData& meshData, const char* filename) {
+bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 	LOG_INFO("Loading mesh from file: {}", filename);
 
 	std::ifstream file(filename, std::ios::binary);

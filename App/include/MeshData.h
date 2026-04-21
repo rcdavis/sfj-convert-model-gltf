@@ -17,4 +17,7 @@ struct MeshData {
 	std::vector<std::string> textures;
 };
 
-bool MeshData_LoadFromFile(MeshData& meshData, const char* filename);
+/**
+ * Loads mesh data from a custom binary file format from a game I worked on (SFJ).
+ */
+bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename);
