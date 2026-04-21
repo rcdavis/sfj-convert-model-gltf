@@ -6,6 +6,7 @@
 			"includePath": [
 				"${workspaceFolder}/build-linux-debug/_deps/spdlog-src/include/",
 				"${workspaceFolder}/build-linux-debug/_deps/tinygltf-src/",
+				"${workspaceFolder}/build-linux-debug/_deps/glm-src/",
 				"${workspaceFolder}/App/include",
 				"/usr/include",
 				"/usr/local/include"
@@ -25,6 +26,7 @@
 			"includePath": [
 				"${workspaceFolder}/build-linux-release/_deps/spdlog-src/include/",
 				"${workspaceFolder}/build-linux-release/_deps/tinygltf-src/",
+				"${workspaceFolder}/build-linux-release/_deps/glm-src/",
 				"${workspaceFolder}/App/include",
 				"/usr/include",
 				"/usr/local/include"

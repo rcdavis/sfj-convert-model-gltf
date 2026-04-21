@@ -3,6 +3,7 @@ project(App)
 add_executable(App
     src/Utils/Log.cpp
     src/Main.cpp
+    src/MeshData.cpp
 )
 
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/res
@@ -27,4 +28,5 @@ target_include_directories(App PUBLIC
 target_link_libraries(App PRIVATE
     spdlog::spdlog_header_only
     tinygltf
+    glm::glm
 )
