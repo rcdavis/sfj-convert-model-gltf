@@ -14,7 +14,7 @@ struct ImageData {
 	std::vector<unsigned char> data;
 };
 
-static bool LoadImageData(ImageData& imageData, const char* filename);
+static bool ImageData_Load(ImageData& imageData, const char* filename);
 
 bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 	LOG_INFO("Loading mesh from file: {}", filename);
@@ -87,8 +87,6 @@ bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 }
 
 bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, const char* diffuseTextureFilename, const char* normalTextureFilename) {
-	LOG_INFO("Saving mesh to GLTF file: {}", filename);
-
 	tinygltf::Model model;
 
 	// Vertex buffer
@@ -178,7 +176,7 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 
 	// Parse diffuse texture
 	ImageData diffuseImageData;
-	if (!LoadImageData(diffuseImageData, diffuseTextureFilename)) {
+	if (!ImageData_Load(diffuseImageData, diffuseTextureFilename)) {
 		LOG_ERROR("Failed to load diffuse texture: {}", diffuseTextureFilename);
 		return false;
 	}
@@ -196,7 +194,7 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 
 	// Parse normal texture
 	ImageData normalImageData;
-	if (!LoadImageData(normalImageData, normalTextureFilename)) {
+	if (!ImageData_Load(normalImageData, normalTextureFilename)) {
 		LOG_ERROR("Failed to load normal texture: {}", normalTextureFilename);
 		return false;
 	}
@@ -267,6 +265,8 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	model.scenes.emplace_back(std::move(scene));
 	model.defaultScene = 0;
 
+	LOG_INFO("Saving mesh to GLTF file: {}", filename);
+
 	// Save the model to a GLTF file
 	tinygltf::TinyGLTF gltfContext;
 	if (!gltfContext.WriteGltfSceneToFile(&model, filename, true, true, true, false)) {
@@ -277,7 +277,7 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	return true;
 }
 
-static bool LoadImageData(ImageData& imageData, const char* filename) {
+static bool ImageData_Load(ImageData& imageData, const char* filename) {
 	int width = 0, height = 0, channels = 0;
 	stbi_uc* imageDataRaw = stbi_load(filename, &width, &height, &channels, 4);
 	if (!imageDataRaw) {
