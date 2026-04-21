@@ -14,7 +14,13 @@ struct ImageData {
 	std::vector<unsigned char> data;
 };
 
+struct VertexInfluence {
+	uint32_t jointIndex = 0;
+	float weight = 0.0f;
+};
+
 static bool ImageData_Load(ImageData& imageData, const char* filename);
+static void VertexInfluence_SortAndNormalize(std::vector<VertexInfluence>& influences);
 
 bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 	LOG_INFO("Loading mesh from file: {}", filename);
@@ -59,15 +65,15 @@ bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 		uint32_t influenceCount = 0;
 		file.read((char*)&influenceCount, sizeof(uint32_t));
 
-		uint32_t joints[8] = {0};
-		float weights[8] = {0.0f};
+		std::vector<VertexInfluence> influences(influenceCount);
+		file.read((char*)influences.data(), influenceCount * sizeof(VertexInfluence));
 
-		for (uint32_t curInfluence = 0; curInfluence < influenceCount; ++curInfluence) {
-			file.read((char*)(joints + curInfluence), sizeof(uint32_t));
-			file.read((char*)(weights + curInfluence), sizeof(float));
+		VertexInfluence_SortAndNormalize(influences);
+
+		for (size_t curInfluence = 0; curInfluence < influences.size(); ++curInfluence) {
+			vertex.jointIndices[curInfluence] = (uint8_t)influences[curInfluence].jointIndex;
+			vertex.jointWeights[curInfluence] = influences[curInfluence].weight;
 		}
-
-		// TODO: Store joint influences in the vertex data
 
 		meshData.vertices.emplace_back(vertex);
 	}
@@ -165,6 +171,24 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	texCoordsAccessor.type = TINYGLTF_TYPE_VEC2;
 	model.accessors.emplace_back(std::move(texCoordsAccessor));
 
+	// Vertex Joint Indices accessor
+	tinygltf::Accessor jointIndicesAccessor;
+	jointIndicesAccessor.bufferView = 0; // vertex buffer view index
+	jointIndicesAccessor.byteOffset = offsetof(Vertex, jointIndices);
+	jointIndicesAccessor.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE;
+	jointIndicesAccessor.count = meshData.vertices.size();
+	jointIndicesAccessor.type = TINYGLTF_TYPE_VEC4;
+	model.accessors.emplace_back(std::move(jointIndicesAccessor));
+
+	// Vertex Joint Weights accessor
+	tinygltf::Accessor jointWeightsAccessor;
+	jointWeightsAccessor.bufferView = 0; // vertex buffer view index
+	jointWeightsAccessor.byteOffset = offsetof(Vertex, jointWeights);
+	jointWeightsAccessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+	jointWeightsAccessor.count = meshData.vertices.size();
+	jointWeightsAccessor.type = TINYGLTF_TYPE_VEC4;
+	model.accessors.emplace_back(std::move(jointWeightsAccessor));
+
 	// Index accessor
 	tinygltf::Accessor indexAccessor;
 	indexAccessor.bufferView = 1; // index buffer view index
@@ -245,7 +269,9 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	primitive.attributes["NORMAL"] = 1;   // normal accessor index
 	primitive.attributes["TANGENT"] = 2;  // tangent accessor index
 	primitive.attributes["TEXCOORD_0"] = 3; // texCoords accessor index
-	primitive.indices = 4; // index accessor index
+	primitive.attributes["JOINTS_0"] = 4; // joint indices accessor index
+	primitive.attributes["WEIGHTS_0"] = 5; // joint weights accessor index
+	primitive.indices = 6; // index accessor index
 	primitive.material = 0; // material index
 	primitive.mode = TINYGLTF_MODE_TRIANGLES;
 
@@ -294,4 +320,37 @@ static bool ImageData_Load(ImageData& imageData, const char* filename) {
 	imageData.data = std::move(rgbaData);
 
 	return true;
+}
+
+static void VertexInfluence_SortAndNormalize(std::vector<VertexInfluence>& influences) {
+	// 1. Remove zero/near-zero weights
+	constexpr float EPS = 1e-6f;
+	influences.erase(
+		std::remove_if(influences.begin(), influences.end(),
+			[EPS](const VertexInfluence& i) { return i.weight < EPS; }),
+		influences.end()
+	);
+
+	// 2. Sort descending by weight
+	std::sort(influences.begin(), influences.end(),
+		[](const VertexInfluence& a, const VertexInfluence& b) {
+			return a.weight > b.weight;
+		});
+
+	// 3. Keep top 4
+	influences.resize(4);
+
+	// 4. Renormalize
+	float sum = 0.0f;
+	for (const auto& i : influences)
+		sum += i.weight;
+
+	if (sum > 0.0f) {
+		for (auto& i : influences)
+			i.weight /= sum;
+	} else {
+		// fallback: assign full weight to first bone
+		influences.clear();
+		influences.push_back({0, 1.0f});
+	}
 }

@@ -9,6 +9,8 @@ struct Vertex {
 	glm::vec3 normal;
 	glm::vec4 tangent;
 	glm::vec2 texCoords;
+	uint8_t jointIndices[4] = {0};
+	float jointWeights[4] = {0.0f};
 };
 
 struct MeshData {
