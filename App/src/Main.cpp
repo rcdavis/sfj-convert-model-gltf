@@ -7,15 +7,20 @@
 int main(int argc, char** argv) {
 	Log::Init();
 
-	if (argc < 2) {
-		LOG_ERROR("No mesh file specified");
-		LOG_ERROR("Usage: {} <mesh_file>", argv[0]);
+	if (argc < 3) {
+		LOG_ERROR("No mesh file or GLTF file specified");
+		LOG_ERROR("Usage: {} <mesh_file> <gltf_file>", argv[0]);
 		return -1;
 	}
 
 	MeshData meshData;
 	if (!MeshData_LoadFromSfjFile(meshData, argv[1])) {
 		LOG_ERROR("Failed to load mesh data");
+		return -1;
+	}
+
+	if (!MeshData_SaveToGltfFile(meshData, argv[2])) {
+		LOG_ERROR("Failed to save mesh data to GLTF file");
 		return -1;
 	}
 
