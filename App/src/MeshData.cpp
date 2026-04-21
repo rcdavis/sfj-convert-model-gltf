@@ -105,6 +105,14 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename) {
 	indexView.byteStride = sizeof(uint16_t);
 	model.bufferViews.emplace_back(std::move(indexView));
 
+	// Calculate min and max values for position attribute
+	glm::vec3 minPos(std::numeric_limits<float>::max());
+	glm::vec3 maxPos(-std::numeric_limits<float>::max());
+	for (const auto& vertex : meshData.vertices) {
+		minPos = glm::min(minPos, vertex.pos);
+		maxPos = glm::max(maxPos, vertex.pos);
+	}
+
 	// Vertex Position accessor
 	tinygltf::Accessor posAccessor;
 	posAccessor.bufferView = 0; // vertex buffer view index
@@ -112,6 +120,8 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename) {
 	posAccessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
 	posAccessor.count = meshData.vertices.size();
 	posAccessor.type = TINYGLTF_TYPE_VEC3;
+	posAccessor.minValues = { minPos.x, minPos.y, minPos.z };
+	posAccessor.maxValues = { maxPos.x, maxPos.y, maxPos.z };
 	model.accessors.emplace_back(std::move(posAccessor));
 
 	// Vertex Normal accessor
