@@ -5,6 +5,7 @@
 
 #include "glm/gtc/type_ptr.hpp"
 #include "tiny_gltf.h"
+#include "stb_image.h"
 
 bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 	LOG_INFO("Loading mesh from file: {}", filename);
@@ -166,9 +167,26 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	indexAccessor.type = TINYGLTF_TYPE_SCALAR;
 	model.accessors.emplace_back(std::move(indexAccessor));
 
+	// Parse diffuse texture
+	int width = 0, height = 0, channels = 0;
+	stbi_uc* imageData = stbi_load(diffuseTextureFilename, &width, &height, &channels, 4);
+	if (!imageData) {
+		LOG_ERROR("Failed to load texture image: {}", diffuseTextureFilename);
+		return false;
+	}
+
+	std::vector<unsigned char> textureData(imageData, imageData + (width * height * 4));
+	stbi_image_free(imageData);
+
 	// Image
 	tinygltf::Image diffuseImage;
-	diffuseImage.uri = diffuseTextureFilename;
+	diffuseImage.width = width;
+	diffuseImage.height = height;
+	diffuseImage.component = 4;
+	diffuseImage.bits = 8;
+	diffuseImage.pixel_type = TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE;
+	diffuseImage.image = std::move(textureData);
+	diffuseImage.mimeType = "image/png";
 	model.images.emplace_back(std::move(diffuseImage));
 
 	// Sampler
