@@ -5,6 +5,9 @@ add_executable(App
     src/Main.cpp
 )
 
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/res
+     DESTINATION ${CMAKE_BINARY_DIR}/App)
+
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_definitions(App PUBLIC
         DEBUG
