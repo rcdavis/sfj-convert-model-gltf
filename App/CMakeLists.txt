@@ -23,4 +23,5 @@ target_include_directories(App PUBLIC
 
 target_link_libraries(App PRIVATE
     spdlog::spdlog_header_only
+    tinygltf
 )

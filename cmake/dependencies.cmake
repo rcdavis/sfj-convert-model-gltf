@@ -12,3 +12,10 @@ FetchContent_Declare(
     GIT_TAG v1.17.0
 )
 FetchContent_MakeAvailable(spdlog)
+
+FetchContent_Declare(
+    tinygltf
+    GIT_REPOSITORY https://github.com/syoyo/tinygltf.git
+    GIT_TAG v3.0.0
+)
+FetchContent_MakeAvailable(tinygltf)
