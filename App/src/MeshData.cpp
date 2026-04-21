@@ -7,6 +7,15 @@
 #include "tiny_gltf.h"
 #include "stb_image.h"
 
+struct ImageData {
+	int width = 0;
+	int height = 0;
+	int channels = 0;
+	std::vector<unsigned char> data;
+};
+
+static bool LoadImageData(ImageData& imageData, const char* filename);
+
 bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 	LOG_INFO("Loading mesh from file: {}", filename);
 
@@ -168,24 +177,20 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	model.accessors.emplace_back(std::move(indexAccessor));
 
 	// Parse diffuse texture
-	int width = 0, height = 0, channels = 0;
-	stbi_uc* imageData = stbi_load(diffuseTextureFilename, &width, &height, &channels, 4);
-	if (!imageData) {
-		LOG_ERROR("Failed to load texture image: {}", diffuseTextureFilename);
+	ImageData diffuseImageData;
+	if (!LoadImageData(diffuseImageData, diffuseTextureFilename)) {
+		LOG_ERROR("Failed to load diffuse texture: {}", diffuseTextureFilename);
 		return false;
 	}
 
-	std::vector<unsigned char> textureData(imageData, imageData + (width * height * 4));
-	stbi_image_free(imageData);
-
 	// Image
 	tinygltf::Image diffuseImage;
-	diffuseImage.width = width;
-	diffuseImage.height = height;
-	diffuseImage.component = 4;
+	diffuseImage.width = diffuseImageData.width;
+	diffuseImage.height = diffuseImageData.height;
+	diffuseImage.component = diffuseImageData.channels;
 	diffuseImage.bits = 8;
 	diffuseImage.pixel_type = TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE;
-	diffuseImage.image = std::move(textureData);
+	diffuseImage.image = std::move(diffuseImageData.data);
 	diffuseImage.mimeType = "image/png";
 	model.images.emplace_back(std::move(diffuseImage));
 
@@ -243,6 +248,25 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 		LOG_ERROR("Failed to save GLTF file: {}", filename);
 		return false;
 	}
+
+	return true;
+}
+
+static bool LoadImageData(ImageData& imageData, const char* filename) {
+	int width = 0, height = 0, channels = 0;
+	stbi_uc* imageDataRaw = stbi_load(filename, &width, &height, &channels, 4);
+	if (!imageDataRaw) {
+		LOG_ERROR("Failed to load texture image: {}", filename);
+		return false;
+	}
+
+	std::vector<unsigned char> rgbaData(imageDataRaw, imageDataRaw + (width * height * 4));
+	stbi_image_free(imageDataRaw);
+
+	imageData.width = width;
+	imageData.height = height;
+	imageData.channels = 4;
+	imageData.data = std::move(rgbaData);
 
 	return true;
 }
