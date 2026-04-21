@@ -7,7 +7,8 @@
 			"request": "launch",
 			"program": "${workspaceFolder}/build-linux-debug/App/App",
 			"args": [
-				"res/meshes/Player.mesh"
+				"res/meshes/Player.mesh",
+				"res/meshes/Player.gltf"
 			],
 			"stopAtEntry": false,
 			"cwd": "${workspaceFolder}/build-linux-debug/App",
@@ -30,7 +31,8 @@
 			"request": "launch",
 			"program": "${workspaceFolder}/build-linux-release/App/App",
 			"args": [
-				"res/meshes/Player.mesh"
+				"res/meshes/Player.mesh",
+				"res/models/Player.gltf"
 			],
 			"stopAtEntry": false,
 			"cwd": "${workspaceFolder}/build-linux-release/App",
