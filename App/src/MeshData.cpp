@@ -86,7 +86,7 @@ bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 	return true;
 }
 
-bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, const char* diffuseTextureFilename) {
+bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, const char* diffuseTextureFilename, const char* normalTextureFilename) {
 	LOG_INFO("Saving mesh to GLTF file: {}", filename);
 
 	tinygltf::Model model;
@@ -183,7 +183,7 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 		return false;
 	}
 
-	// Image
+	// Diffuse Image
 	tinygltf::Image diffuseImage;
 	diffuseImage.width = diffuseImageData.width;
 	diffuseImage.height = diffuseImageData.height;
@@ -194,6 +194,24 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	diffuseImage.mimeType = "image/png";
 	model.images.emplace_back(std::move(diffuseImage));
 
+	// Parse normal texture
+	ImageData normalImageData;
+	if (!LoadImageData(normalImageData, normalTextureFilename)) {
+		LOG_ERROR("Failed to load normal texture: {}", normalTextureFilename);
+		return false;
+	}
+
+	// Normal Image
+	tinygltf::Image normalImage;
+	normalImage.width = normalImageData.width;
+	normalImage.height = normalImageData.height;
+	normalImage.component = normalImageData.channels;
+	normalImage.bits = 8;
+	normalImage.pixel_type = TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE;
+	normalImage.image = std::move(normalImageData.data);
+	normalImage.mimeType = "image/png";
+	model.images.emplace_back(std::move(normalImage));
+
 	// Sampler
 	tinygltf::Sampler sampler;
 	sampler.wrapS = TINYGLTF_TEXTURE_WRAP_REPEAT;
@@ -202,11 +220,17 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	sampler.magFilter = TINYGLTF_TEXTURE_FILTER_LINEAR;
 	model.samplers.emplace_back(std::move(sampler));
 
-	// Texture
-	tinygltf::Texture texture;
-	texture.source = 0; // image index
-	texture.sampler = 0; // sampler index
-	model.textures.emplace_back(std::move(texture));
+	// Diffuse Texture
+	tinygltf::Texture diffuseTexture;
+	diffuseTexture.source = 0; // image index
+	diffuseTexture.sampler = 0; // sampler index
+	model.textures.emplace_back(std::move(diffuseTexture));
+
+	// Normal Texture
+	tinygltf::Texture normalTexture;
+	normalTexture.source = 1; // image index
+	normalTexture.sampler = 0; // sampler index
+	model.textures.emplace_back(std::move(normalTexture));
 
 	// Material
 	tinygltf::Material material;
@@ -214,6 +238,7 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	material.pbrMetallicRoughness.baseColorFactor = { 1.0f, 1.0f, 1.0f, 1.0f };
 	material.pbrMetallicRoughness.metallicFactor = 0.0f;
 	material.pbrMetallicRoughness.roughnessFactor = 1.0f;
+	material.normalTexture.index = 1; // normal texture index
 	model.materials.emplace_back(std::move(material));
 
 	// Primitive
