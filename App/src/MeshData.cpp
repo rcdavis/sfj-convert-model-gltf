@@ -61,9 +61,12 @@ bool MeshData_LoadFromFile(MeshData& meshData, const char* filename) {
 	file.read((char*)&primitivesCount, sizeof(uint32_t));
 
 	meshData.indices.resize(primitivesCount * 3);
-	file.read((char*)meshData.indices.data(), meshData.indices.size() * sizeof(uint32_t));
+	std::vector<uint32_t> tempIndices(primitivesCount * 3);
+	file.read((char*)tempIndices.data(), tempIndices.size() * sizeof(uint32_t));
 
-	// TODO: Convert to 16-bit indices if possible
+	for (size_t i = 0; i < tempIndices.size(); ++i) {
+		meshData.indices[i] = static_cast<uint16_t>(tempIndices[i]);
+	}
 
 	return true;
 }
