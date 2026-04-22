@@ -15,6 +15,7 @@ struct Vertex {
 
 struct BoneData {
 	uint32_t parentIndex = -1;
+	std::vector<uint32_t> childIndices;
 	glm::mat4 localBindPose = glm::mat4(1.0f);
 	glm::mat4 worldBindPose = glm::mat4(1.0f);
 	glm::mat4 inverseBindPose = glm::mat4(1.0f);
