@@ -89,6 +89,40 @@ bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 		meshData.indices[i] = static_cast<uint16_t>(tempIndices[i]);
 	}
 
+	uint32_t bindPoseFrameCount = 0;
+	file.read((char*)&bindPoseFrameCount, sizeof(uint32_t));
+
+	meshData.bones.resize(bindPoseFrameCount);
+
+	// Used for converting from left-handed to right-handed coordinate system
+	constexpr glm::mat4 flip = glm::mat4(
+		1, 0,  0, 0,
+		0, 1,  0, 0,
+		0, 0, -1, 0,
+		0, 0,  0, 1
+	);
+
+	for (uint32_t i = 0; i < bindPoseFrameCount; ++i) {
+		glm::mat4 localBindPose;
+		file.read((char*)glm::value_ptr(localBindPose), sizeof(glm::mat4));
+		meshData.bones[i].localBindPose = flip * glm::transpose(localBindPose) * flip;
+	}
+
+	for (uint32_t i = 0; i < bindPoseFrameCount; ++i) {
+		uint32_t frameIndex = 0;
+		file.read((char*)&frameIndex, sizeof(uint32_t));
+
+		uint32_t childrenCount = 0;
+		file.read((char*)&childrenCount, sizeof(uint32_t));
+
+		for (uint32_t j = 0; j < childrenCount; ++j) {
+			uint32_t childIndex = 0;
+			file.read((char*)&childIndex, sizeof(uint32_t));
+
+			meshData.bones[childIndex].parentIndex = frameIndex;
+		}
+	}
+
 	return true;
 }
 
@@ -106,6 +140,15 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	indexBuffer.data.resize(meshData.indices.size() * sizeof(uint16_t));
 	memcpy(indexBuffer.data.data(), meshData.indices.data(), indexBuffer.data.size());
 	model.buffers.emplace_back(std::move(indexBuffer));
+
+	// Inverse bind pose buffer
+	tinygltf::Buffer inverseBindPoseBuffer;
+	inverseBindPoseBuffer.data.resize(meshData.bones.size() * sizeof(glm::mat4));
+	for (size_t i = 0; i < meshData.bones.size(); ++i) {
+		memcpy(inverseBindPoseBuffer.data.data() + i * sizeof(glm::mat4),
+			glm::value_ptr(meshData.bones[i].inverseBindPose), sizeof(glm::mat4));
+	}
+	model.buffers.emplace_back(std::move(inverseBindPoseBuffer));
 
 	// Vertex buffer view
 	tinygltf::BufferView vertexView;
@@ -125,9 +168,17 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	indexView.target = TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER;
 	model.bufferViews.emplace_back(std::move(indexView));
 
+	// Inverse bind pose buffer view
+	tinygltf::BufferView inverseBindPoseView;
+	inverseBindPoseView.buffer = 2; // inverse bind pose buffer index
+	inverseBindPoseView.byteOffset = 0;
+	inverseBindPoseView.byteLength = meshData.bones.size() * sizeof(glm::mat4);
+	inverseBindPoseView.byteStride = sizeof(glm::mat4);
+	model.bufferViews.emplace_back(std::move(inverseBindPoseView));
+
 	// Calculate min and max values for position attribute
 	glm::vec3 minPos(std::numeric_limits<float>::max());
-	glm::vec3 maxPos(-std::numeric_limits<float>::max());
+	glm::vec3 maxPos(std::numeric_limits<float>::min());
 	for (const auto& vertex : meshData.vertices) {
 		minPos = glm::min(minPos, vertex.pos);
 		maxPos = glm::max(maxPos, vertex.pos);
@@ -198,6 +249,15 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	indexAccessor.type = TINYGLTF_TYPE_SCALAR;
 	model.accessors.emplace_back(std::move(indexAccessor));
 
+	// Inverse bind pose accessor
+	tinygltf::Accessor inverseBindPoseAccessor;
+	inverseBindPoseAccessor.bufferView = 2; // inverse bind pose buffer view index
+	inverseBindPoseAccessor.byteOffset = 0;
+	inverseBindPoseAccessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+	inverseBindPoseAccessor.count = meshData.bones.size();
+	inverseBindPoseAccessor.type = TINYGLTF_TYPE_MAT4;
+	model.accessors.emplace_back(std::move(inverseBindPoseAccessor));
+
 	// Parse diffuse texture
 	ImageData diffuseImageData;
 	if (!ImageData_Load(diffuseImageData, diffuseTextureFilename)) {
@@ -262,6 +322,16 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	material.pbrMetallicRoughness.roughnessFactor = 1.0f;
 	material.normalTexture.index = 1; // normal texture index
 	model.materials.emplace_back(std::move(material));
+
+	// Skin
+	tinygltf::Skin skin;
+	skin.inverseBindMatrices = 8; // inverse bind pose accessor index
+	skin.joints.resize(meshData.bones.size());
+	for (size_t i = 0; i < meshData.bones.size(); ++i) {
+		skin.joints[i] = static_cast<int>(i); // joint node indices
+	}
+	skin.skeleton = 0; // root node index
+	model.skins.emplace_back(std::move(skin));
 
 	// Primitive
 	tinygltf::Primitive primitive;
