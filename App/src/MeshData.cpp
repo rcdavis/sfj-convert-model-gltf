@@ -123,6 +123,18 @@ bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 		}
 	}
 
+	// NOTE: This only works if parent is already computed before child, which is the case here
+	for (uint32_t i = 0; i < bindPoseFrameCount; ++i) {
+		if (meshData.bones[i].parentIndex != -1) {
+			meshData.bones[i].worldBindPose = meshData.bones[meshData.bones[i].parentIndex].worldBindPose *
+				meshData.bones[i].localBindPose;
+		} else {
+			meshData.bones[i].worldBindPose = meshData.bones[i].localBindPose;
+		}
+
+		meshData.bones[i].inverseBindPose = glm::inverse(meshData.bones[i].worldBindPose);
+	}
+
 	return true;
 }
 
