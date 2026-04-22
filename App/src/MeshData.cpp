@@ -21,6 +21,8 @@ struct VertexInfluence {
 
 static bool ImageData_Load(ImageData& imageData, const char* filename);
 static void VertexInfluence_SortAndNormalize(std::vector<VertexInfluence>& influences);
+static void DecomposeMatrix(const glm::mat4& matrix, glm::vec3& outTranslation,
+	glm::quat& outRotation, glm::vec3& outScale);
 
 bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 	LOG_INFO("Loading mesh from file: {}", filename);
@@ -362,10 +364,25 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	mesh.primitives.emplace_back(std::move(primitive));
 	model.meshes.emplace_back(std::move(mesh));
 
-	// Node
-	tinygltf::Node node;
-	node.mesh = 0; // mesh index
-	model.nodes.emplace_back(std::move(node));
+	// Mesh Node
+	tinygltf::Node meshNode;
+	meshNode.mesh = 0; // mesh index
+	meshNode.skin = 0; // skin index
+	model.nodes.emplace_back(std::move(meshNode));
+
+	// Joint Nodes
+	for (size_t i = 0; i < meshData.bones.size(); ++i) {
+		glm::vec3 translation;
+		glm::quat rotation;
+		glm::vec3 scale;
+		DecomposeMatrix(meshData.bones[i].localBindPose, translation, rotation, scale);
+
+		tinygltf::Node jointNode;
+		jointNode.translation = { translation.x, translation.y, translation.z };
+		jointNode.rotation = { rotation.x, rotation.y, rotation.z, rotation.w };
+		jointNode.scale = { scale.x, scale.y, scale.z };
+		model.nodes.emplace_back(std::move(jointNode));
+	}
 
 	// Scene
 	tinygltf::Scene scene;
@@ -435,4 +452,34 @@ static void VertexInfluence_SortAndNormalize(std::vector<VertexInfluence>& influ
 		influences.clear();
 		influences.push_back({0, 1.0f});
 	}
+}
+
+static void DecomposeMatrix(const glm::mat4& matrix, glm::vec3& outTranslation,
+	glm::quat& outRotation, glm::vec3& outScale
+) {
+	outTranslation = glm::vec3(matrix[3]);
+
+	const glm::vec3 col0 = glm::vec3(matrix[0]);
+	const glm::vec3 col1 = glm::vec3(matrix[1]);
+	const glm::vec3 col2 = glm::vec3(matrix[2]);
+
+	outScale.x = glm::length(col0);
+	outScale.y = glm::length(col1);
+	outScale.z = glm::length(col2);
+
+	glm::vec3 rot0 = col0 / outScale.x;
+	const glm::vec3 rot1 = col1 / outScale.y;
+	const glm::vec3 rot2 = col2 / outScale.z;
+
+	if (glm::dot(glm::cross(rot0, rot1), rot2) < 0.0f) {
+		outScale.x = -outScale.x;
+		rot0 = -rot0;
+	}
+
+	glm::mat3 rotMat;
+	rotMat[0] = rot0;
+	rotMat[1] = rot1;
+	rotMat[2] = rot2;
+
+	outRotation = glm::normalize(glm::quat_cast(rotMat));
 }
