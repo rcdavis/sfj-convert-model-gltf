@@ -107,7 +107,7 @@ bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 	for (uint32_t i = 0; i < bindPoseFrameCount; ++i) {
 		glm::mat4 localBindPose;
 		file.read((char*)glm::value_ptr(localBindPose), sizeof(glm::mat4));
-		meshData.bones[i].localBindPose = flip * glm::transpose(localBindPose) * flip;
+		meshData.bones[i].localBindPose = flip * localBindPose * flip;
 	}
 
 	for (uint32_t i = 0; i < bindPoseFrameCount; ++i) {
@@ -136,6 +136,16 @@ bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 		}
 
 		meshData.bones[i].inverseBindPose = glm::inverse(meshData.bones[i].worldBindPose);
+
+		LOG_INFO("Checking bone {}:", i);
+		for (int col = 0; col < 4; ++col) {
+			for (int row = 0; row < 4; ++row) {
+				float v = meshData.bones[i].inverseBindPose[col][row];
+				if (std::isfinite(v)) {
+					LOG_INFO("  inverse bind pose[{}][{}] = {}", col, row, v);
+				}
+			}
+		}
 	}
 
 	return true;
@@ -396,17 +406,19 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 		model.nodes.emplace_back(std::move(jointNode));
 	}
 
-	// Mesh Node
+	// Mesh Node (child of root joint)
 	tinygltf::Node meshNode;
 	meshNode.mesh = 0; // mesh index
 	meshNode.skin = 0; // skin index
-	meshNode.children.emplace_back(0); // root joint node index
 	const int meshNodeIndex = static_cast<int>(model.nodes.size());
 	model.nodes.emplace_back(std::move(meshNode));
 
+	// Make mesh node a child of root joint node
+	model.nodes[0].children.emplace_back(meshNodeIndex);
+
 	// Scene
 	tinygltf::Scene scene;
-	scene.nodes.emplace_back(meshNodeIndex);
+	scene.nodes.emplace_back(0); // root joint node index (mesh is now a child of this)
 	model.scenes.emplace_back(std::move(scene));
 	model.defaultScene = 0;
 
