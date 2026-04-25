@@ -131,16 +131,6 @@ bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 		}
 
 		meshData.bones[i].inverseBindPose = glm::inverse(meshData.bones[i].worldBindPose);
-
-		LOG_INFO("Checking bone {}:", i);
-		for (int col = 0; col < 4; ++col) {
-			for (int row = 0; row < 4; ++row) {
-				float v = meshData.bones[i].inverseBindPose[col][row];
-				if (std::isfinite(v)) {
-					LOG_INFO("  inverse bind pose[{}][{}] = {}", col, row, v);
-				}
-			}
-		}
 	}
 
 	return true;
