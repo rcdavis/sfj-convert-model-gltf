@@ -56,7 +56,10 @@ bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 		Vertex vertex;
 
 		file.read((char*)glm::value_ptr(vertex.pos), sizeof(glm::vec3));
+		vertex.pos = glm::vec4(vertex.pos, 1.0f);
+
 		file.read((char*)glm::value_ptr(vertex.normal), sizeof(glm::vec3));
+		vertex.normal = glm::vec4(vertex.normal, 0.0f);
 
 		glm::vec3 tangent;
 		file.read((char*)glm::value_ptr(tangent), sizeof(glm::vec3));
@@ -96,18 +99,10 @@ bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 
 	meshData.bones.resize(bindPoseFrameCount);
 
-	// Used for converting from left-handed to right-handed coordinate system
-	constexpr glm::mat4 flip = glm::mat4(
-		1, 0,  0, 0,
-		0, 1,  0, 0,
-		0, 0, -1, 0,
-		0, 0,  0, 1
-	);
-
 	for (uint32_t i = 0; i < bindPoseFrameCount; ++i) {
 		glm::mat4 localBindPose;
 		file.read((char*)glm::value_ptr(localBindPose), sizeof(glm::mat4));
-		meshData.bones[i].localBindPose = flip * localBindPose * flip;
+		meshData.bones[i].localBindPose = localBindPose;
 	}
 
 	for (uint32_t i = 0; i < bindPoseFrameCount; ++i) {
