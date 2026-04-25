@@ -56,10 +56,7 @@ bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 		Vertex vertex;
 
 		file.read((char*)glm::value_ptr(vertex.pos), sizeof(glm::vec3));
-		vertex.pos = glm::vec4(vertex.pos, 1.0f);
-
 		file.read((char*)glm::value_ptr(vertex.normal), sizeof(glm::vec3));
-		vertex.normal = glm::vec4(vertex.normal, 0.0f);
 
 		glm::vec3 tangent;
 		file.read((char*)glm::value_ptr(tangent), sizeof(glm::vec3));
