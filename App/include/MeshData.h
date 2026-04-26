@@ -13,10 +13,19 @@ struct Vertex {
 	float jointWeights[4] = {0.0f};
 };
 
+struct BoneData {
+	uint32_t parentIndex = -1;
+	std::vector<uint32_t> childIndices;
+	glm::mat4 localBindPose = glm::mat4(1.0f);
+	glm::mat4 worldBindPose = glm::mat4(1.0f);
+	glm::mat4 inverseBindPose = glm::mat4(1.0f);
+};
+
 struct MeshData {
 	std::vector<Vertex> vertices;
 	std::vector<uint16_t> indices;
 	std::vector<std::string> textures;
+	std::vector<BoneData> bones;
 };
 
 /**

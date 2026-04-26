@@ -21,6 +21,8 @@ struct VertexInfluence {
 
 static bool ImageData_Load(ImageData& imageData, const char* filename);
 static void VertexInfluence_SortAndNormalize(std::vector<VertexInfluence>& influences);
+static void DecomposeMatrix(const glm::mat4& matrix, glm::vec3& outTranslation,
+	glm::quat& outRotation, glm::vec3& outScale);
 
 bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 	LOG_INFO("Loading mesh from file: {}", filename);
@@ -89,6 +91,45 @@ bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 		meshData.indices[i] = static_cast<uint16_t>(tempIndices[i]);
 	}
 
+	uint32_t bindPoseFrameCount = 0;
+	file.read((char*)&bindPoseFrameCount, sizeof(uint32_t));
+
+	meshData.bones.resize(bindPoseFrameCount);
+
+	for (uint32_t i = 0; i < bindPoseFrameCount; ++i) {
+		glm::mat4 localBindPose;
+		file.read((char*)glm::value_ptr(localBindPose), sizeof(glm::mat4));
+		meshData.bones[i].localBindPose = localBindPose;
+	}
+
+	for (uint32_t i = 0; i < bindPoseFrameCount; ++i) {
+		uint32_t frameIndex = 0;
+		file.read((char*)&frameIndex, sizeof(uint32_t));
+
+		uint32_t childrenCount = 0;
+		file.read((char*)&childrenCount, sizeof(uint32_t));
+
+		for (uint32_t j = 0; j < childrenCount; ++j) {
+			uint32_t childIndex = 0;
+			file.read((char*)&childIndex, sizeof(uint32_t));
+
+			meshData.bones[childIndex].parentIndex = frameIndex;
+			meshData.bones[frameIndex].childIndices.emplace_back(childIndex);
+		}
+	}
+
+	// NOTE: This only works if parent is already computed before child, which is the case here
+	for (uint32_t i = 0; i < bindPoseFrameCount; ++i) {
+		if (meshData.bones[i].parentIndex != -1) {
+			meshData.bones[i].worldBindPose = meshData.bones[meshData.bones[i].parentIndex].worldBindPose *
+				meshData.bones[i].localBindPose;
+		} else {
+			meshData.bones[i].worldBindPose = meshData.bones[i].localBindPose;
+		}
+
+		meshData.bones[i].inverseBindPose = glm::inverse(meshData.bones[i].worldBindPose);
+	}
+
 	return true;
 }
 
@@ -99,35 +140,57 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	tinygltf::Buffer vertexBuffer;
 	vertexBuffer.data.resize(meshData.vertices.size() * sizeof(Vertex));
 	memcpy(vertexBuffer.data.data(), meshData.vertices.data(), vertexBuffer.data.size());
+	const int vertexBufferIndex = static_cast<int>(model.buffers.size());
 	model.buffers.emplace_back(std::move(vertexBuffer));
 
 	// Index buffer
 	tinygltf::Buffer indexBuffer;
 	indexBuffer.data.resize(meshData.indices.size() * sizeof(uint16_t));
 	memcpy(indexBuffer.data.data(), meshData.indices.data(), indexBuffer.data.size());
+	const int indexBufferIndex = static_cast<int>(model.buffers.size());
 	model.buffers.emplace_back(std::move(indexBuffer));
+
+	// Inverse bind pose buffer
+	tinygltf::Buffer inverseBindPoseBuffer;
+	inverseBindPoseBuffer.data.resize(meshData.bones.size() * sizeof(glm::mat4));
+	for (size_t i = 0; i < meshData.bones.size(); ++i) {
+		memcpy(inverseBindPoseBuffer.data.data() + i * sizeof(glm::mat4),
+			glm::value_ptr(meshData.bones[i].inverseBindPose), sizeof(glm::mat4));
+	}
+	const int inverseBindPoseBufferIndex = static_cast<int>(model.buffers.size());
+	model.buffers.emplace_back(std::move(inverseBindPoseBuffer));
 
 	// Vertex buffer view
 	tinygltf::BufferView vertexView;
-	vertexView.buffer = 0; // vertex buffer index
+	vertexView.buffer = vertexBufferIndex;
 	vertexView.byteOffset = 0;
 	vertexView.byteLength = meshData.vertices.size() * sizeof(Vertex);
 	vertexView.byteStride = sizeof(Vertex);
 	vertexView.target = TINYGLTF_TARGET_ARRAY_BUFFER;
+	const int vertexBufferViewIndex = static_cast<int>(model.bufferViews.size());
 	model.bufferViews.emplace_back(std::move(vertexView));
 
 	// Index buffer view
 	tinygltf::BufferView indexView;
-	indexView.buffer = 1; // index buffer index
+	indexView.buffer = indexBufferIndex;
 	indexView.byteOffset = 0;
 	indexView.byteLength = meshData.indices.size() * sizeof(uint16_t);
 	indexView.byteStride = sizeof(uint16_t);
 	indexView.target = TINYGLTF_TARGET_ELEMENT_ARRAY_BUFFER;
+	const int indexBufferViewIndex = static_cast<int>(model.bufferViews.size());
 	model.bufferViews.emplace_back(std::move(indexView));
+
+	// Inverse bind pose buffer view
+	tinygltf::BufferView inverseBindPoseView;
+	inverseBindPoseView.buffer = inverseBindPoseBufferIndex;
+	inverseBindPoseView.byteOffset = 0;
+	inverseBindPoseView.byteLength = meshData.bones.size() * sizeof(glm::mat4);
+	const int inverseBindPoseBufferViewIndex = static_cast<int>(model.bufferViews.size());
+	model.bufferViews.emplace_back(std::move(inverseBindPoseView));
 
 	// Calculate min and max values for position attribute
 	glm::vec3 minPos(std::numeric_limits<float>::max());
-	glm::vec3 maxPos(-std::numeric_limits<float>::max());
+	glm::vec3 maxPos(std::numeric_limits<float>::min());
 	for (const auto& vertex : meshData.vertices) {
 		minPos = glm::min(minPos, vertex.pos);
 		maxPos = glm::max(maxPos, vertex.pos);
@@ -135,68 +198,85 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 
 	// Vertex Position accessor
 	tinygltf::Accessor posAccessor;
-	posAccessor.bufferView = 0; // vertex buffer view index
+	posAccessor.bufferView = vertexBufferViewIndex;
 	posAccessor.byteOffset = offsetof(Vertex, pos);
 	posAccessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
 	posAccessor.count = meshData.vertices.size();
 	posAccessor.type = TINYGLTF_TYPE_VEC3;
 	posAccessor.minValues = { minPos.x, minPos.y, minPos.z };
 	posAccessor.maxValues = { maxPos.x, maxPos.y, maxPos.z };
+	const int posAccessorIndex = static_cast<int>(model.accessors.size());
 	model.accessors.emplace_back(std::move(posAccessor));
 
 	// Vertex Normal accessor
 	tinygltf::Accessor normalAccessor;
-	normalAccessor.bufferView = 0; // vertex buffer view index
+	normalAccessor.bufferView = vertexBufferViewIndex;
 	normalAccessor.byteOffset = offsetof(Vertex, normal);
 	normalAccessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
 	normalAccessor.count = meshData.vertices.size();
 	normalAccessor.type = TINYGLTF_TYPE_VEC3;
+	const int normalAccessorIndex = static_cast<int>(model.accessors.size());
 	model.accessors.emplace_back(std::move(normalAccessor));
 
 	// Vertex Tangent accessor
 	tinygltf::Accessor tangentAccessor;
-	tangentAccessor.bufferView = 0; // vertex buffer view index
+	tangentAccessor.bufferView = vertexBufferViewIndex;
 	tangentAccessor.byteOffset = offsetof(Vertex, tangent);
 	tangentAccessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
 	tangentAccessor.count = meshData.vertices.size();
 	tangentAccessor.type = TINYGLTF_TYPE_VEC4;
+	const int tangentAccessorIndex = static_cast<int>(model.accessors.size());
 	model.accessors.emplace_back(std::move(tangentAccessor));
 
 	// Vertex Texture Coordinates accessor
 	tinygltf::Accessor texCoordsAccessor;
-	texCoordsAccessor.bufferView = 0; // vertex buffer view index
+	texCoordsAccessor.bufferView = vertexBufferViewIndex;
 	texCoordsAccessor.byteOffset = offsetof(Vertex, texCoords);
 	texCoordsAccessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
 	texCoordsAccessor.count = meshData.vertices.size();
 	texCoordsAccessor.type = TINYGLTF_TYPE_VEC2;
+	const int texCoordsAccessorIndex = static_cast<int>(model.accessors.size());
 	model.accessors.emplace_back(std::move(texCoordsAccessor));
 
 	// Vertex Joint Indices accessor
 	tinygltf::Accessor jointIndicesAccessor;
-	jointIndicesAccessor.bufferView = 0; // vertex buffer view index
+	jointIndicesAccessor.bufferView = vertexBufferViewIndex;
 	jointIndicesAccessor.byteOffset = offsetof(Vertex, jointIndices);
 	jointIndicesAccessor.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE;
 	jointIndicesAccessor.count = meshData.vertices.size();
 	jointIndicesAccessor.type = TINYGLTF_TYPE_VEC4;
+	const int jointIndicesAccessorIndex = static_cast<int>(model.accessors.size());
 	model.accessors.emplace_back(std::move(jointIndicesAccessor));
 
 	// Vertex Joint Weights accessor
 	tinygltf::Accessor jointWeightsAccessor;
-	jointWeightsAccessor.bufferView = 0; // vertex buffer view index
+	jointWeightsAccessor.bufferView = vertexBufferViewIndex;
 	jointWeightsAccessor.byteOffset = offsetof(Vertex, jointWeights);
 	jointWeightsAccessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
 	jointWeightsAccessor.count = meshData.vertices.size();
 	jointWeightsAccessor.type = TINYGLTF_TYPE_VEC4;
+	const int jointWeightsAccessorIndex = static_cast<int>(model.accessors.size());
 	model.accessors.emplace_back(std::move(jointWeightsAccessor));
 
 	// Index accessor
 	tinygltf::Accessor indexAccessor;
-	indexAccessor.bufferView = 1; // index buffer view index
+	indexAccessor.bufferView = indexBufferViewIndex;
 	indexAccessor.byteOffset = 0;
 	indexAccessor.componentType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT;
 	indexAccessor.count = meshData.indices.size();
 	indexAccessor.type = TINYGLTF_TYPE_SCALAR;
+	const int indexAccessorIndex = static_cast<int>(model.accessors.size());
 	model.accessors.emplace_back(std::move(indexAccessor));
+
+	// Inverse bind pose accessor
+	tinygltf::Accessor inverseBindPoseAccessor;
+	inverseBindPoseAccessor.bufferView = inverseBindPoseBufferViewIndex;
+	inverseBindPoseAccessor.byteOffset = 0;
+	inverseBindPoseAccessor.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+	inverseBindPoseAccessor.count = meshData.bones.size();
+	inverseBindPoseAccessor.type = TINYGLTF_TYPE_MAT4;
+	const int inverseBindPoseAccessorIndex = static_cast<int>(model.accessors.size());
+	model.accessors.emplace_back(std::move(inverseBindPoseAccessor));
 
 	// Parse diffuse texture
 	ImageData diffuseImageData;
@@ -263,15 +343,25 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	material.normalTexture.index = 1; // normal texture index
 	model.materials.emplace_back(std::move(material));
 
+	// Skin
+	tinygltf::Skin skin;
+	skin.inverseBindMatrices = inverseBindPoseAccessorIndex;
+	skin.joints.resize(meshData.bones.size());
+	for (size_t i = 0; i < meshData.bones.size(); ++i) {
+		skin.joints[i] = static_cast<int>(i); // joint node indices
+	}
+	skin.skeleton = 0; // root node index
+	model.skins.emplace_back(std::move(skin));
+
 	// Primitive
 	tinygltf::Primitive primitive;
-	primitive.attributes["POSITION"] = 0; // position accessor index
-	primitive.attributes["NORMAL"] = 1;   // normal accessor index
-	primitive.attributes["TANGENT"] = 2;  // tangent accessor index
-	primitive.attributes["TEXCOORD_0"] = 3; // texCoords accessor index
-	primitive.attributes["JOINTS_0"] = 4; // joint indices accessor index
-	primitive.attributes["WEIGHTS_0"] = 5; // joint weights accessor index
-	primitive.indices = 6; // index accessor index
+	primitive.attributes["POSITION"] = posAccessorIndex;
+	primitive.attributes["NORMAL"] = normalAccessorIndex;
+	primitive.attributes["TANGENT"] = tangentAccessorIndex;
+	primitive.attributes["TEXCOORD_0"] = texCoordsAccessorIndex;
+	primitive.attributes["JOINTS_0"] = jointIndicesAccessorIndex;
+	primitive.attributes["WEIGHTS_0"] = jointWeightsAccessorIndex;
+	primitive.indices = indexAccessorIndex;
 	primitive.material = 0; // material index
 	primitive.mode = TINYGLTF_MODE_TRIANGLES;
 
@@ -280,14 +370,35 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	mesh.primitives.emplace_back(std::move(primitive));
 	model.meshes.emplace_back(std::move(mesh));
 
-	// Node
-	tinygltf::Node node;
-	node.mesh = 0; // mesh index
-	model.nodes.emplace_back(std::move(node));
+	// Joint Nodes
+	for (size_t i = 0; i < meshData.bones.size(); ++i) {
+		glm::vec3 translation;
+		glm::quat rotation;
+		glm::vec3 scale;
+		DecomposeMatrix(meshData.bones[i].localBindPose, translation, rotation, scale);
+
+		tinygltf::Node jointNode;
+		jointNode.translation = { translation.x, translation.y, translation.z };
+		jointNode.rotation = { rotation.x, rotation.y, rotation.z, rotation.w };
+		jointNode.scale = { scale.x, scale.y, scale.z };
+		jointNode.children.reserve(meshData.bones[i].childIndices.size());
+		for (uint32_t childIndex : meshData.bones[i].childIndices) {
+			jointNode.children.emplace_back(static_cast<int>(childIndex)); // child node indices
+		}
+		model.nodes.emplace_back(std::move(jointNode));
+	}
+
+	// Mesh Node (child of root joint)
+	tinygltf::Node meshNode;
+	meshNode.mesh = 0; // mesh index
+	meshNode.skin = 0; // skin index
+	const int meshNodeIndex = static_cast<int>(model.nodes.size());
+	model.nodes.emplace_back(std::move(meshNode));
 
 	// Scene
 	tinygltf::Scene scene;
-	scene.nodes.emplace_back(0); // node index
+	scene.nodes.emplace_back(0); // root joint node index
+	scene.nodes.emplace_back(meshNodeIndex); // mesh node index
 	model.scenes.emplace_back(std::move(scene));
 	model.defaultScene = 0;
 
@@ -353,4 +464,34 @@ static void VertexInfluence_SortAndNormalize(std::vector<VertexInfluence>& influ
 		influences.clear();
 		influences.push_back({0, 1.0f});
 	}
+}
+
+static void DecomposeMatrix(const glm::mat4& matrix, glm::vec3& outTranslation,
+	glm::quat& outRotation, glm::vec3& outScale
+) {
+	outTranslation = glm::vec3(matrix[3]);
+
+	const glm::vec3 col0 = glm::vec3(matrix[0]);
+	const glm::vec3 col1 = glm::vec3(matrix[1]);
+	const glm::vec3 col2 = glm::vec3(matrix[2]);
+
+	outScale.x = glm::length(col0);
+	outScale.y = glm::length(col1);
+	outScale.z = glm::length(col2);
+
+	glm::vec3 rot0 = col0 / outScale.x;
+	const glm::vec3 rot1 = col1 / outScale.y;
+	const glm::vec3 rot2 = col2 / outScale.z;
+
+	if (glm::dot(glm::cross(rot0, rot1), rot2) < 0.0f) {
+		outScale.x = -outScale.x;
+		rot0 = -rot0;
+	}
+
+	glm::mat3 rotMat;
+	rotMat[0] = rot0;
+	rotMat[1] = rot1;
+	rotMat[2] = rot2;
+
+	outRotation = glm::normalize(glm::quat_cast(rotMat));
 }
