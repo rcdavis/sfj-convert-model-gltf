@@ -395,12 +395,10 @@ bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, con
 	const int meshNodeIndex = static_cast<int>(model.nodes.size());
 	model.nodes.emplace_back(std::move(meshNode));
 
-	// Make mesh node a child of root joint node
-	model.nodes[0].children.emplace_back(meshNodeIndex);
-
 	// Scene
 	tinygltf::Scene scene;
-	scene.nodes.emplace_back(0); // root joint node index (mesh is now a child of this)
+	scene.nodes.emplace_back(0); // root joint node index
+	scene.nodes.emplace_back(meshNodeIndex); // mesh node index
 	model.scenes.emplace_back(std::move(scene));
 	model.defaultScene = 0;
 
