@@ -133,7 +133,89 @@ bool MeshData_LoadFromSfjFile(MeshData& meshData, const char* filename) {
 	return true;
 }
 
-bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename, const char* diffuseTextureFilename, const char* normalTextureFilename) {
+bool AnimationData_LoadFromSfjFile(AnimationData& animData, const char* filename) {
+	LOG_INFO("Loading animation from file: {}", filename);
+
+	std::ifstream file(filename, std::ios::binary);
+	if (!file) {
+		LOG_ERROR("Failed to open file: {}", filename);
+		return false;
+	}
+
+	// TODO: temp animation name
+	animData.name = filename;
+
+	file.read((char*)&animData.startTime, sizeof(float));
+	file.read((char*)&animData.endTime, sizeof(float));
+
+	uint32_t boneCount = 0;
+	file.read((char*)&boneCount, sizeof(uint32_t));
+	animData.bones.resize(boneCount);
+
+	for (uint32_t curBone = 0; curBone < boneCount; ++curBone) {
+		AnimationBone& bone = animData.bones[curBone];
+
+		uint32_t keyframeCount = 0;
+		file.read((char*)&keyframeCount, sizeof(uint32_t));
+		bone.keyframes.resize(keyframeCount);
+
+		for (uint32_t curKeyframe = 0; curKeyframe < keyframeCount; ++curKeyframe) {
+			file.read((char*)&bone.keyframes[curKeyframe].keyTime, sizeof(float));
+			file.read((char*)glm::value_ptr(bone.keyframes[curKeyframe].localTransform), sizeof(glm::mat4));
+		}
+
+		for (uint32_t curKeyframe = 1; curKeyframe < keyframeCount; ++curKeyframe) {
+			bone.keyframes[curKeyframe - 1].duration = bone.keyframes[curKeyframe].keyTime -
+				bone.keyframes[curKeyframe - 1].keyTime;
+		}
+		bone.keyframes.back().duration = animData.endTime - bone.keyframes.back().keyTime;
+	}
+
+	for (uint32_t curBone = 0; curBone < boneCount; ++curBone) {
+		uint32_t unBone = 0;
+		file.read((char*)&unBone, sizeof(uint32_t));
+
+		uint32_t numChildren = 0;
+		file.read((char*)&numChildren, sizeof(uint32_t));
+
+		for (uint32_t curChild = 0; curChild < numChildren; ++curChild) {
+			uint32_t childIndex = 0;
+			file.read((char*)&childIndex, sizeof(uint32_t));
+
+			for (uint32_t curFrame = 0; curFrame < animData.bones[unBone].keyframes.size(); ++curFrame) {
+				animData.bones[childIndex].keyframes[curFrame].parentIndex = unBone;
+				animData.bones[unBone].keyframes[curFrame].childIndices.emplace_back(childIndex);
+			}
+		}
+	}
+
+	// NOTE: This only works if parent is already computed before child, which is the case here?
+	for (uint32_t curBone = 0; curBone < boneCount; ++curBone) {
+		for (uint32_t curKeyframe = 0; curKeyframe < animData.bones[curBone].keyframes.size(); ++curKeyframe) {
+			AnimationKeyframe& keyframe = animData.bones[curBone].keyframes[curKeyframe];
+
+			if (keyframe.parentIndex != -1) {
+				AnimationKeyframe& parentKeyframe = animData.bones[keyframe.parentIndex].keyframes[curKeyframe];
+
+				keyframe.worldTransform = parentKeyframe.worldTransform * keyframe.localTransform;
+			} else {
+				keyframe.worldTransform = keyframe.localTransform;
+			}
+		}
+	}
+
+	return true;
+}
+
+bool MeshData_SaveToGltfFile(const MeshData& meshData, const char* filename,
+	const char* diffuseTextureFilename, const char* normalTextureFilename, const char* animationFilename
+) {
+	AnimationData animData;
+	if (!AnimationData_LoadFromSfjFile(animData, animationFilename)) {
+		LOG_ERROR("Failed to load animation data from file: {}", animationFilename);
+		return false;
+	}
+
 	tinygltf::Model model;
 
 	// Vertex buffer
