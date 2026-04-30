@@ -10,7 +10,8 @@
 				"res/meshes/Player.mesh",
 				"res/meshes/Player.gltf",
 				"res/textures/D_Main_character_EC.png",
-				"res/textures/N_Main_character_EC.png"
+				"res/textures/N_Main_character_EC.png",
+				"res/anims/Player.anim"
 			],
 			"stopAtEntry": false,
 			"cwd": "${workspaceFolder}/build-linux-debug/App",
@@ -36,7 +37,8 @@
 				"res/meshes/Player.mesh",
 				"res/models/Player.gltf",
 				"res/textures/D_Main_character_EC.png",
-				"res/textures/N_Main_character_EC.png"
+				"res/textures/N_Main_character_EC.png",
+				"res/anims/Player.anim"
 			],
 			"stopAtEntry": false,
 			"cwd": "${workspaceFolder}/build-linux-release/App",
